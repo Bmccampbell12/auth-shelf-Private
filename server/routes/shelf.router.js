@@ -1,56 +1,79 @@
 const express = require('express');
 const pool = require('../modules/pool');
 const router = express.Router();
+const { rejectUnauthenticated } = require('../modules/authentication-middleware')
 
 /**
  * Get all of the items on the shelf
  */
+
+// This route *should* return the logged in users items
+
 router.get('/', (req, res) => {
-  const queryText = `SELECT * FROM "item"`;
-  pool.query(queryText)
-    .then(result => {
-      res.json(result.rows);
-    })
-    .catch(err => {
-      console.error('Error completing SELECT shelf query', err);
-      res.sendStatus(500);
+    console.log('/shelf GET route');
+    console.log('is authenticated?', req.isAuthenticated());
+    console.log('user', req.user);
+
+    const queryText = `
+    SELECT * FROM "items"
+    WHERE user_id = $1;
+  `
+  
+  if (req.isAuthenticated() && req.user.access_level == 0) { // ! This is needed if you want to use req.user (because if user isnt authenticated then req.user will be undefined.)
+    pool.query(queryText, [req.user.id]).then((result) => {
+        res.send(result.rows);
+    }).catch((error) => {
+        console.log(error);
+        res.sendStatus(500);
     });
+} else {
+    console.log("Forbidden User")
+    res.sendStatus(403)
+}
+
 });
 
 
 /**
  * Add an item for the logged in user to the shelf
  */
-router.post('/', (req, res) => {
-  const { description, image_url } = req.body;
-  const queryText = `INSERT INTO "item" (description, image_url, user_id) VALUES ($1, $2, $3) RETURNING *`;
-  pool.query(queryText, [description, image_url, req.user.id])
-    .then(result => res.status(201).json(result.rows[0]))
-    .catch(err => {
-      console.error('Error completing INSERT shelf query', err);
-      res.sendStatus(500);
-    });
-});
 
+// This route *should* add a pet for the logged in user
+
+router.post("/", rejectUnauthenticated, (req, res) => {
+  console.log('item being added is:', req.body, 'with user:', req.user.id)
+const query = `
+INSERT INTO "item"
+  ("description", "image_url", "user_id")
+  VALUES
+  ($1, $2, $3)
+`
+const sqlValues = [req.body.description, req.body.image_url, req.user.id]
+
+pool.query(query, sqlValues)
+.then (result => {
+  res.sendStatus(200)
+})
+.catch(error => {
+  console.log('Server error posting item:', error)
+  res.sendStatus(500)
+})
+});
 
 /**
  * Delete an item if it's something the logged in user added
  */
-router.delete('/:id', (req, res) => {
-  const itemId = req.params.id;
-  const queryText = `DELETE FROM "item" WHERE id=$1 AND user_id=$2`;
-  pool.query(queryText, [itemId, req.user.id])
-    .then(result => {
-      if (result.rowCount > 0) {
-        res.sendStatus(204);
-      } else {
-        res.sendStatus(403); // Forbidden if the user doesn't own the item
-      }
-    })
-    .catch(err => {
-      console.error('Error completing DELETE shelf query', err);
-      res.sendStatus(500);
-    });
+router.delete("/:id", rejectUnauthenticated, (req, res) => {
+  const sqlText = `DELETE FROM "item"
+    WHERE "id" = $1`;
+  const sqlValues = [req.params.id];
+  pool
+    .query(sqlText, sqlValues)
+    .then((dbRes) => res.sendStatus(200))
+    .catch((dbErr) => {
+      console.log(`SQL Error in DELETE/api/shelf`, dbErr);
+   res.sendStatus(403); // Forbidden if the user doesn't own the item
+});
 });
 
 /**
