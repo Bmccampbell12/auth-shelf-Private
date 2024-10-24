@@ -30,7 +30,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
-    "nodemon": "^2.0.4",
+    "nodemon": "^2.0.22",
     "vite": "^5.0.10",
     "vitest": "^1.1.0"
   },

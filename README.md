@@ -72,7 +72,7 @@ CREATE TABLE "item" (
 - Start postgres if not running already by using `brew services start postgresql`
 - Run `npm run server`
 - Run `npm run client`
-- Navigate to `localhost:5173`
+- Navigate to `npm install`
 
 ## Debugging
 
